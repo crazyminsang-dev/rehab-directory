@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""인쇄용 HTML/CSS 레이아웃 생성기 — 4가지 디자인 × 2가지 규격"""
+"""인쇄용 HTML/CSS 레이아웃 생성기 — 4가지 디자인 × 2가지 규격 (흑백)"""
 
 from modules.seed_data import FOOTER_DONG_UI, FOOTER_KOSIN
 
@@ -12,19 +12,33 @@ _COMMON_CSS = """
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
     font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    color: #000;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
 
 .no-print { display: block; text-align: center; padding: 10px; }
 .print-btn {
-    background: #1E88E5; color: #fff; border: none; padding: 10px 30px;
+    background: #333; color: #fff; border: none; padding: 10px 30px;
     border-radius: 6px; font-size: 14px; cursor: pointer; margin: 5px;
 }
-.print-btn:hover { background: #1565C0; }
+.print-btn:hover { background: #555; }
 
 @media print {
     .no-print { display: none !important; }
+}
+
+/* 공통: 셀 내용이 길어도 표 깨지지 않게 */
+.fixed-table {
+    width: 100%; border-collapse: collapse;
+    table-layout: fixed;
+}
+.fixed-table td, .fixed-table th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0.3mm 0.8mm;
+    vertical-align: middle;
 }
 </style>
 """
@@ -42,15 +56,6 @@ def _header_html(title: str = "재활의학과 주소록") -> str:
 """
 
 
-def _footer_block() -> str:
-    return f"""
-<div class="footer-info">
-    <div class="footer-line">{FOOTER_DONG_UI}</div>
-    <div class="footer-line">{FOOTER_KOSIN}</div>
-</div>
-"""
-
-
 def _split_members(members: list[dict]) -> tuple[list[dict], list[dict]]:
     """회원을 두 그룹으로 분리: 앞면(2기~19기), 뒷면(Staff+21기~31기)."""
     side_a = [m for m in members if m["cohort_order"] > 0 and m["cohort_order"] <= 19]
@@ -59,7 +64,7 @@ def _split_members(members: list[dict]) -> tuple[list[dict], list[dict]]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Layout A: 개선된 표 형식
+# Layout A: 개선된 표 형식 (흑백)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_a_css(size: str) -> str:
@@ -67,54 +72,62 @@ def _layout_a_css(size: str) -> str:
         return """
 <style>
 @page { size: 90mm 50mm; margin: 0; }
-.card { width: 90mm; height: 50mm; padding: 2mm 3mm; page-break-after: always; overflow: hidden; }
+.card-a { width: 90mm; height: 50mm; padding: 2mm 2.5mm; page-break-after: always; overflow: hidden; position: relative; }
 </style>"""
     else:
         return """
 <style>
 @page { size: 90mm 100mm; margin: 0; }
-.card { width: 90mm; height: 100mm; padding: 3mm 4mm; page-break-after: always; overflow: hidden; }
+.card-a { width: 90mm; height: 100mm; padding: 3mm 3mm; page-break-after: always; overflow: hidden; position: relative; }
 </style>"""
 
 
 def _layout_a_table(members: list[dict], show_footer: bool = False) -> str:
     rows = ""
     for i, m in enumerate(members):
-        bg = "#f8f9fa" if i % 2 == 0 else "#ffffff"
+        bg = "#f0f0f0" if i % 2 == 0 else "#fff"
         name_display = m["name"]
         if m.get("is_tbd"):
             name_display = f'<span style="color:#999">{name_display}</span>'
         rows += f"""
         <tr style="background:{bg}">
-            <td style="font-weight:500; white-space:nowrap">{m['cohort']}</td>
+            <td style="font-weight:500">{m['cohort']}</td>
             <td style="font-weight:600">{name_display}</td>
-            <td style="font-size:6pt; max-width:28mm; overflow:hidden; text-overflow:ellipsis">{m.get('workplace','')}</td>
-            <td style="font-size:6pt">{m.get('email','')}</td>
-            <td style="font-size:6pt">{m.get('license_no','')}</td>
-            <td style="font-size:6pt; white-space:nowrap">{m.get('phone','')}</td>
+            <td>{m.get('workplace','')}</td>
+            <td>{m.get('email','')}</td>
+            <td>{m.get('license_no','')}</td>
+            <td>{m.get('phone','')}</td>
         </tr>"""
 
     footer = ""
     if show_footer:
         footer = f"""
-        <div style="position:absolute; bottom:1mm; left:3mm; right:3mm; font-size:5pt; color:#666; line-height:1.4">
+        <div style="position:absolute; bottom:1mm; left:2.5mm; right:2.5mm; font-size:5pt; color:#555; line-height:1.4; border-top:0.3mm solid #999; padding-top:0.5mm">
             {FOOTER_DONG_UI}<br>{FOOTER_KOSIN}
         </div>"""
 
     return f"""
-<div class="card" style="position:relative">
-    <div style="text-align:center; font-size:8pt; font-weight:700; margin-bottom:1mm; color:#1E88E5">
+<div class="card-a">
+    <div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm">
         재활의학과 주소록
     </div>
-    <table style="width:100%; border-collapse:collapse; font-size:6.5pt; line-height:1.3">
+    <table class="fixed-table" style="font-size:6pt; line-height:1.3">
+        <colgroup>
+            <col style="width:10%">
+            <col style="width:12%">
+            <col style="width:30%">
+            <col style="width:22%">
+            <col style="width:10%">
+            <col style="width:16%">
+        </colgroup>
         <thead>
-            <tr style="background:#1E88E5; color:#fff">
-                <th style="padding:0.5mm 1mm; text-align:left">기수</th>
-                <th style="padding:0.5mm 1mm; text-align:left">성명</th>
-                <th style="padding:0.5mm 1mm; text-align:left">현근무지</th>
-                <th style="padding:0.5mm 1mm; text-align:left">이메일</th>
-                <th style="padding:0.5mm 1mm; text-align:left">면허</th>
-                <th style="padding:0.5mm 1mm; text-align:left">전화번호</th>
+            <tr style="background:#000; color:#fff">
+                <th style="text-align:left; padding:0.4mm 0.8mm">기수</th>
+                <th style="text-align:left; padding:0.4mm 0.8mm">성명</th>
+                <th style="text-align:left; padding:0.4mm 0.8mm">현근무지</th>
+                <th style="text-align:left; padding:0.4mm 0.8mm">이메일</th>
+                <th style="text-align:left; padding:0.4mm 0.8mm">면허</th>
+                <th style="text-align:left; padding:0.4mm 0.8mm">전화번호</th>
             </tr>
         </thead>
         <tbody>{rows}</tbody>
@@ -133,7 +146,7 @@ def generate_layout_a(members: list[dict], size: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Layout B: 모던 클린
+# Layout B: 모던 클린 (흑백)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_b_css(size: str) -> str:
@@ -141,13 +154,13 @@ def _layout_b_css(size: str) -> str:
         return """
 <style>
 @page { size: 90mm 50mm; margin: 0; }
-.card-b { width: 90mm; height: 50mm; padding: 2mm 3mm; page-break-after: always; overflow: hidden; }
+.card-b { width: 90mm; height: 50mm; padding: 2mm 3mm; page-break-after: always; overflow: hidden; position: relative; }
 </style>"""
     else:
         return """
 <style>
 @page { size: 90mm 100mm; margin: 0; }
-.card-b { width: 90mm; height: 100mm; padding: 3mm 4mm; page-break-after: always; overflow: hidden; }
+.card-b { width: 90mm; height: 100mm; padding: 3mm 4mm; page-break-after: always; overflow: hidden; position: relative; }
 </style>"""
 
 
@@ -157,35 +170,34 @@ def _layout_b_list(members: list[dict], show_footer: bool = False) -> str:
     for m in members:
         cohort_label = ""
         if m["cohort"] != prev_cohort:
-            cohort_label = f'<span style="display:inline-block; background:#E3F2FD; color:#1565C0; font-size:5.5pt; font-weight:600; padding:0.3mm 1.5mm; border-radius:1mm; margin-right:1mm">{m["cohort"]}</span>'
+            cohort_label = f'<span style="display:inline-block; background:#e0e0e0; font-size:6pt; font-weight:600; padding:0.2mm 1.5mm; border-radius:0.5mm; margin-right:1mm; min-width:7mm; text-align:center">{m["cohort"]}</span>'
             prev_cohort = m["cohort"]
         else:
-            cohort_label = '<span style="display:inline-block; width:8mm"></span>'
+            cohort_label = '<span style="display:inline-block; min-width:7mm; margin-right:1mm; padding:0.2mm 1.5mm"></span>'
 
-        name_style = "font-weight:600; font-size:7pt"
+        name_style = "font-weight:600; font-size:6pt"
         if m.get("is_tbd"):
             name_style += "; color:#999"
 
         phone_display = m.get("phone", "")
-        email_display = m.get("email", "")
 
         items += f"""
-        <div style="display:flex; align-items:baseline; padding:0.3mm 0; border-bottom:0.2mm solid #f0f0f0">
+        <div style="display:flex; align-items:baseline; padding:0.2mm 0; border-bottom:0.15mm solid #ddd; font-size:6pt">
             {cohort_label}
             <span style="{name_style}; min-width:10mm">{m['name']}</span>
-            <span style="font-size:5.5pt; color:#666; margin-left:auto; white-space:nowrap">{phone_display}</span>
+            <span style="color:#444; margin-left:auto; white-space:nowrap">{phone_display}</span>
         </div>"""
 
     footer = ""
     if show_footer:
         footer = f"""
-        <div style="position:absolute; bottom:1mm; left:3mm; right:3mm; font-size:5pt; color:#888; line-height:1.4; border-top:0.3mm solid #e0e0e0; padding-top:0.5mm">
+        <div style="position:absolute; bottom:1mm; left:3mm; right:3mm; font-size:5pt; color:#555; line-height:1.4; border-top:0.3mm solid #999; padding-top:0.5mm">
             {FOOTER_DONG_UI}<br>{FOOTER_KOSIN}
         </div>"""
 
     return f"""
-<div class="card-b" style="position:relative">
-    <div style="font-size:8pt; font-weight:700; color:#333; margin-bottom:1.5mm; letter-spacing:0.5mm">
+<div class="card-b">
+    <div style="font-size:7pt; font-weight:700; margin-bottom:1.5mm; letter-spacing:0.5mm; border-bottom:0.4mm solid #000; padding-bottom:0.5mm">
         재활의학과 주소록
     </div>
     {items}
@@ -203,7 +215,7 @@ def generate_layout_b(members: list[dict], size: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Layout C: 카드 그리드
+# Layout C: 카드 그리드 (흑백)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_c_css(size: str) -> str:
@@ -211,22 +223,22 @@ def _layout_c_css(size: str) -> str:
         return """
 <style>
 @page { size: 90mm 50mm; margin: 0; }
-.card-c { width: 90mm; height: 50mm; padding: 2mm; page-break-after: always; overflow: hidden; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1mm; }
+.card-c { width: 90mm; height: 50mm; padding: 2mm; page-break-after: always; overflow: hidden; position: relative; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8mm; }
 .person-card {
-    border: 0.2mm solid #e0e0e0; border-radius: 1mm; padding: 1mm;
-    font-size: 5.5pt; line-height: 1.3; background: #fafafa;
+    border: 0.2mm solid #aaa; padding: 0.8mm;
+    font-size: 6pt; line-height: 1.25; overflow: hidden;
 }
 </style>"""
     else:
         return """
 <style>
 @page { size: 90mm 100mm; margin: 0; }
-.card-c { width: 90mm; height: 100mm; padding: 2mm; page-break-after: always; overflow: hidden; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1mm; }
+.card-c { width: 90mm; height: 100mm; padding: 2mm; page-break-after: always; overflow: hidden; position: relative; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8mm; }
 .person-card {
-    border: 0.2mm solid #e0e0e0; border-radius: 1mm; padding: 1.2mm;
-    font-size: 5.5pt; line-height: 1.3; background: #fafafa;
+    border: 0.2mm solid #aaa; padding: 1mm;
+    font-size: 6pt; line-height: 1.3; overflow: hidden;
 }
 </style>"""
 
@@ -234,27 +246,27 @@ def _layout_c_css(size: str) -> str:
 def _layout_c_grid(members: list[dict], show_footer: bool = False) -> str:
     cards = ""
     for m in members:
-        name_style = "font-weight:700; font-size:6.5pt; color:#1565C0"
+        name_style = "font-weight:700; font-size:6pt"
         if m.get("is_tbd"):
             name_style += "; color:#999"
         cards += f"""
         <div class="person-card">
-            <div style="font-size:5pt; color:#888">{m['cohort']}</div>
+            <div style="font-size:5pt; color:#666">{m['cohort']}</div>
             <div style="{name_style}">{m['name']}</div>
-            <div style="color:#555; font-size:5pt; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{m.get('phone','')}</div>
-            <div style="color:#888; font-size:4.5pt; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{m.get('email','')}</div>
+            <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{m.get('phone','')}</div>
+            <div style="color:#555; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{m.get('email','')}</div>
         </div>"""
 
     footer = ""
     if show_footer:
         footer = f"""
-        <div style="position:absolute; bottom:1mm; left:2mm; right:2mm; font-size:4.5pt; color:#888; line-height:1.3">
+        <div style="position:absolute; bottom:1mm; left:2mm; right:2mm; font-size:5pt; color:#555; line-height:1.3; border-top:0.2mm solid #999; padding-top:0.3mm">
             {FOOTER_DONG_UI}<br>{FOOTER_KOSIN}
         </div>"""
 
     return f"""
-<div class="card-c" style="position:relative">
-    <div style="text-align:center; font-size:7pt; font-weight:700; color:#1E88E5; margin-bottom:1mm">
+<div class="card-c">
+    <div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm">
         재활의학과 주소록
     </div>
     <div class="grid">{cards}</div>
@@ -272,7 +284,7 @@ def generate_layout_c(members: list[dict], size: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Layout D: 컴팩트 2단
+# Layout D: 컴팩트 2단 (흑백)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_d_css(size: str) -> str:
@@ -280,15 +292,15 @@ def _layout_d_css(size: str) -> str:
         return """
 <style>
 @page { size: 90mm 50mm; margin: 0; }
-.card-d { width: 90mm; height: 50mm; padding: 2mm 3mm; page-break-after: always; overflow: hidden; }
+.card-d { width: 90mm; height: 50mm; padding: 2mm 3mm; page-break-after: always; overflow: hidden; position: relative; }
 .two-col { column-count: 2; column-gap: 3mm; font-size: 6pt; line-height: 1.4; }
 </style>"""
     else:
         return """
 <style>
 @page { size: 90mm 100mm; margin: 0; }
-.card-d { width: 90mm; height: 100mm; padding: 3mm 4mm; page-break-after: always; overflow: hidden; }
-.two-col { column-count: 2; column-gap: 3mm; font-size: 6.5pt; line-height: 1.5; }
+.card-d { width: 90mm; height: 100mm; padding: 3mm 4mm; page-break-after: always; overflow: hidden; position: relative; }
+.two-col { column-count: 2; column-gap: 3mm; font-size: 6pt; line-height: 1.5; }
 </style>"""
 
 
@@ -299,7 +311,7 @@ def _layout_d_columns(members: list[dict], show_footer: bool = False) -> str:
         if m["cohort"] != prev_cohort:
             if prev_cohort:
                 items += '<div style="height:0.5mm"></div>'
-            items += f'<div style="font-weight:700; color:#1565C0; font-size:5.5pt; border-bottom:0.2mm solid #1565C0; margin-bottom:0.3mm">{m["cohort"]}</div>'
+            items += f'<div style="font-weight:700; font-size:6pt; border-bottom:0.2mm solid #000; margin-bottom:0.3mm">{m["cohort"]}</div>'
             prev_cohort = m["cohort"]
 
         name_style = "font-weight:600"
@@ -308,21 +320,21 @@ def _layout_d_columns(members: list[dict], show_footer: bool = False) -> str:
 
         phone = m.get("phone", "")
         items += f"""
-        <div style="display:flex; justify-content:space-between; padding:0.2mm 0">
-            <span style="{name_style}">{m['name']}</span>
-            <span style="color:#555; font-size:5.5pt">{phone}</span>
+        <div style="display:flex; justify-content:space-between; padding:0.2mm 0; font-size:6pt">
+            <span style="{name_style}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{m['name']}</span>
+            <span style="color:#333; white-space:nowrap; margin-left:1mm">{phone}</span>
         </div>"""
 
     footer = ""
     if show_footer:
         footer = f"""
-        <div style="position:absolute; bottom:1mm; left:3mm; right:3mm; font-size:5pt; color:#888; line-height:1.3; column-span:all">
+        <div style="position:absolute; bottom:1mm; left:3mm; right:3mm; font-size:5pt; color:#555; line-height:1.3; border-top:0.3mm solid #999; padding-top:0.3mm">
             {FOOTER_DONG_UI}<br>{FOOTER_KOSIN}
         </div>"""
 
     return f"""
-<div class="card-d" style="position:relative">
-    <div style="text-align:center; font-size:7.5pt; font-weight:700; color:#333; margin-bottom:1mm; border-bottom:0.3mm solid #333; padding-bottom:0.5mm">
+<div class="card-d">
+    <div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm; border-bottom:0.4mm solid #000; padding-bottom:0.5mm">
         재활의학과 주소록
     </div>
     <div class="two-col">{items}</div>
