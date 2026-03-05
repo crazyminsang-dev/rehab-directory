@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""인쇄용 HTML/CSS 레이아웃 생성기 — 4가지 디자인 × 2가지 규격 (흑백)"""
+"""인쇄용 HTML/CSS 레이아웃 생성기 — 4가지 디자인 × 2가지 규격 (흑백) v2"""
 
 from modules.seed_data import FOOTER_DONG_UI, FOOTER_KOSIN
 

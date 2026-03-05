@@ -63,13 +63,52 @@ with tab1:
 
 # ━━ 탭 2: 데이터 편집 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab2:
-    st.subheader("전체 데이터 테이블")
+    st.subheader("전체 데이터 테이블 (직접 편집 가능)")
+    st.caption("현근무지, 이메일, 면허번호, 전화번호 칸을 클릭하여 직접 수정할 수 있습니다. 수정 후 아래 '변경사항 저장' 버튼을 눌러주세요.")
     all_members = get_all_members()
     df = pd.DataFrame(all_members)
-    display_cols = ["id", "cohort", "name", "workplace", "email", "license_no", "phone", "is_submitted"]
-    df_display = df[[c for c in display_cols if c in df.columns]].copy()
-    df_display.columns = ["ID", "기수", "이름", "현근무지", "이메일", "면허번호", "전화번호", "제출여부"]
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
+    display_cols = ["id", "cohort", "name", "workplace", "email", "license_no", "phone"]
+    df_edit = df[[c for c in display_cols if c in df.columns]].copy()
+    df_edit.columns = ["ID", "기수", "이름", "현근무지", "이메일", "면허번호", "전화번호"]
+
+    edited_df = st.data_editor(
+        df_edit,
+        use_container_width=True,
+        hide_index=True,
+        disabled=["ID", "기수", "이름"],
+        column_config={
+            "ID": st.column_config.NumberColumn(width="small"),
+            "기수": st.column_config.TextColumn(width="small"),
+            "이름": st.column_config.TextColumn(width="small"),
+            "현근무지": st.column_config.TextColumn(width="large"),
+            "이메일": st.column_config.TextColumn(width="medium"),
+            "면허번호": st.column_config.TextColumn(width="small"),
+            "전화번호": st.column_config.TextColumn(width="medium"),
+        },
+        key="member_editor",
+    )
+
+    if st.button("변경사항 저장", type="primary", key="save_table_edits"):
+        save_count = 0
+        for idx, row in edited_df.iterrows():
+            member_id = int(row["ID"])
+            orig = df_edit.iloc[idx]
+            if (row["현근무지"] != orig["현근무지"] or row["이메일"] != orig["이메일"]
+                    or row["면허번호"] != orig["면허번호"] or row["전화번호"] != orig["전화번호"]):
+                update_member(
+                    member_id,
+                    str(row["현근무지"]),
+                    str(row["이메일"]),
+                    str(row["면허번호"]),
+                    str(row["전화번호"]),
+                    updated_by="admin",
+                )
+                save_count += 1
+        if save_count:
+            st.success(f"{save_count}건 저장 완료")
+            st.rerun()
+        else:
+            st.info("변경된 내용이 없습니다.")
 
     st.divider()
     st.subheader("개별 수동 입력")
