@@ -1,7 +1,17 @@
 # -*- coding: utf-8 -*-
-"""인쇄용 HTML/CSS 레이아웃 생성기 — 4가지 디자인 × 2가지 규격 (흑백) v3"""
+"""인쇄용 HTML/CSS 레이아웃 생성기 — 4가지 디자인 × 2가지 규격 (흑백) v5"""
 
 from modules.seed_data import FOOTER_DONG_UI, FOOTER_KOSIN
+
+
+def _t(text: str | None, max_len: int) -> str:
+    """텍스트를 max_len 글자로 잘라서 반환. 넘치면 '…' 붙임."""
+    if not text:
+        return ""
+    s = str(text)
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 1] + "…"
 
 # ── 공통 CSS ──────────────────────────────────────────────────────────────────
 
@@ -28,7 +38,6 @@ body {
     .no-print { display: none !important; }
 }
 
-/* 셀 내용 강제 클리핑 — 모든 레이아웃 공통 */
 .clip {
     display: block;
     overflow: hidden !important;
@@ -52,10 +61,18 @@ def _header_html(title: str = "재활의학과 주소록") -> str:
 
 
 def _split_members(members: list[dict]) -> tuple[list[dict], list[dict]]:
-    """회원을 두 그룹으로 분리: 앞면(2기~19기), 뒷면(Staff+21기~31기)."""
+    """2그룹: 앞면(2기~19기), 뒷면(Staff+21기~31기)."""
     side_a = [m for m in members if m["cohort_order"] > 0 and m["cohort_order"] <= 19]
     side_b = [m for m in members if m["cohort_order"] == 0 or m["cohort_order"] >= 21]
     return side_a, side_b
+
+
+def _split_members_4(members: list[dict]) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """4그룹: 더블카드 접이식 용 (각 면 50mm)."""
+    side_a, side_b = _split_members(members)
+    mid_a = len(side_a) // 2
+    mid_b = len(side_b) // 2
+    return side_a[:mid_a], side_a[mid_a:], side_b[:mid_b], side_b[mid_b:]
 
 
 def _footer_html(show: bool) -> str:
@@ -67,90 +84,125 @@ def _footer_html(show: bool) -> str:
     </div>"""
 
 
+def _fold_line() -> str:
+    """접는 선 (점선)"""
+    return '<div style="width:90mm; border-top:0.3mm dashed #aaa; margin:0; height:0"></div>'
+
+
 # ══════════════════════════════════════════════════════════════════════════════
-# Layout A: 개선된 표 형식 — CSS Grid 기반 (표 깨짐 원천 차단)
+# Layout A: 개선된 표 형식 — CSS Grid 기반
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_a_css(size: str) -> str:
-    h = "50mm" if size == "card" else "100mm"
-    p = "2mm 2.5mm" if size == "card" else "3mm 3mm"
-    return f"""
+    if size == "card":
+        return """
 <style>
-@page {{ size: 90mm {h}; margin: 0; }}
-.card-a {{ width: 90mm; height: {h}; padding: {p}; page-break-after: always; overflow: hidden; position: relative; }}
-.grid-table {{
-    display: grid;
-    grid-template-columns: 8mm 10mm 1fr 18mm 8mm 14mm;
-    font-size: 6pt;
-    line-height: 1.3;
-    gap: 0;
-}}
-.grid-table > div {{
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 0.3mm 0.5mm;
-    border-bottom: 0.1mm solid #ddd;
-}}
-.grid-hdr {{
-    background: #000;
-    color: #fff;
-    font-weight: 600;
-    padding: 0.4mm 0.5mm !important;
-    border-bottom: none !important;
-}}
+@page { size: 90mm 50mm; margin: 0; }
+.card-a { width: 90mm; height: 50mm; padding: 2mm 2.5mm; page-break-after: always; overflow: hidden; position: relative; }
+</style>"""
+    else:
+        return """
+<style>
+@page { size: 90mm 100mm; margin: 0; }
+.card-a { width: 90mm; height: 50mm; padding: 2mm 2.5mm; overflow: hidden; position: relative; }
+.double-page { width: 90mm; height: 100mm; page-break-after: always; }
 </style>"""
 
 
-def _layout_a_page(members: list[dict], show_footer: bool = False) -> str:
-    # 헤더 행
-    hdr = ''.join(f'<div class="grid-hdr">{c}</div>' for c in ["기수","성명","현근무지","이메일","면허","전화번호"])
+_GRID_TABLE_CSS = """
+<style>
+.grid-table {
+    display: grid;
+    grid-template-columns: 8mm 10mm minmax(0, 1fr) 18mm 8mm 14mm;
+    font-size: 6pt; line-height: 1.3; gap: 0;
+    width: 85mm;
+}
+.grid-table > div {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 0.3mm 0.5mm; border-bottom: 0.1mm solid #ddd;
+    min-width: 0;
+}
+.grid-hdr {
+    background: #000; color: #fff; font-weight: 600;
+    padding: 0.4mm 0.5mm !important; border-bottom: none !important;
+}
+</style>
+"""
 
+
+def _layout_a_panel(members: list[dict], show_title: bool = True, show_footer: bool = False) -> str:
+    hdr = ''.join(f'<div class="grid-hdr">{c}</div>' for c in ["기수","성명","현근무지","이메일","면허","전화번호"])
     rows = ""
     for i, m in enumerate(members):
-        bg = f"background:#f0f0f0;" if i % 2 == 0 else ""
-        name = m["name"]
+        bg = "background:#f0f0f0;" if i % 2 == 0 else ""
+        name = _t(m["name"], 6)
         if m.get("is_tbd"):
             name = f'<span style="color:#999">{name}</span>'
-        rows += f"""<div style="{bg} font-weight:500">{m['cohort']}</div>"""
-        rows += f"""<div style="{bg} font-weight:600">{name}</div>"""
-        rows += f"""<div style="{bg}">{m.get('workplace','')}</div>"""
-        rows += f"""<div style="{bg}">{m.get('email','')}</div>"""
-        rows += f"""<div style="{bg}">{m.get('license_no','')}</div>"""
-        rows += f"""<div style="{bg}">{m.get('phone','')}</div>"""
+        wp = _t(m.get("workplace", ""), 12)
+        em = _t(m.get("email", ""), 16)
+        ln = _t(m.get("license_no", ""), 7)
+        ph = _t(m.get("phone", ""), 13)
+        rows += f'<div style="{bg} font-weight:500">{m["cohort"]}</div>'
+        rows += f'<div style="{bg} font-weight:600">{name}</div>'
+        rows += f'<div style="{bg}">{wp}</div>'
+        rows += f'<div style="{bg}">{em}</div>'
+        rows += f'<div style="{bg}">{ln}</div>'
+        rows += f'<div style="{bg}">{ph}</div>'
 
+    title = '<div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm">재활의학과 주소록</div>' if show_title else ""
     return f"""
 <div class="card-a">
-    <div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm">재활의학과 주소록</div>
+    {title}
     <div class="grid-table">{hdr}{rows}</div>
     {_footer_html(show_footer)}
 </div>"""
 
 
 def generate_layout_a(members: list[dict], size: str) -> str:
-    side_a, side_b = _split_members(members)
-    css = _COMMON_CSS + _layout_a_css(size)
+    css = _COMMON_CSS + _layout_a_css(size) + _GRID_TABLE_CSS
     html = css + _header_html("Layout A: 개선된 표 형식")
-    html += _layout_a_page(side_a, show_footer=False)
-    html += _layout_a_page(side_b, show_footer=True)
+
+    if size == "card":
+        side_a, side_b = _split_members(members)
+        html += _layout_a_panel(side_a, show_title=True, show_footer=False)
+        html += _layout_a_panel(side_b, show_title=False, show_footer=True)
+    else:
+        p1, p2, p3, p4 = _split_members_4(members)
+        html += '<div class="double-page">'
+        html += _layout_a_panel(p1, show_title=True, show_footer=False)
+        html += _fold_line()
+        html += _layout_a_panel(p2, show_title=False, show_footer=False)
+        html += '</div>'
+        html += '<div class="double-page">'
+        html += _layout_a_panel(p3, show_title=False, show_footer=False)
+        html += _fold_line()
+        html += _layout_a_panel(p4, show_title=False, show_footer=True)
+        html += '</div>'
+
     return f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>{html}</body></html>"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Layout B: 모던 클린 — 이름 + 전화번호 (근무지는 인쇄물에서 생략)
+# Layout B: 모던 클린 — 기수 + 이름 + 전화번호
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_b_css(size: str) -> str:
-    h = "50mm" if size == "card" else "100mm"
-    p = "2mm 3mm" if size == "card" else "3mm 4mm"
-    return f"""
+    if size == "card":
+        return """
 <style>
-@page {{ size: 90mm {h}; margin: 0; }}
-.card-b {{ width: 90mm; height: {h}; padding: {p}; page-break-after: always; overflow: hidden; position: relative; }}
+@page { size: 90mm 50mm; margin: 0; }
+.card-b { width: 90mm; height: 50mm; padding: 2mm 3mm; overflow: hidden; position: relative; page-break-after: always; }
+</style>"""
+    else:
+        return """
+<style>
+@page { size: 90mm 100mm; margin: 0; }
+.card-b { width: 90mm; height: 50mm; padding: 2mm 3mm; overflow: hidden; position: relative; }
+.double-page { width: 90mm; height: 100mm; page-break-after: always; }
 </style>"""
 
 
-def _layout_b_page(members: list[dict], show_footer: bool = False) -> str:
+def _layout_b_panel(members: list[dict], show_title: bool = True, show_footer: bool = False) -> str:
     items = ""
     prev_cohort = ""
     for m in members:
@@ -164,78 +216,119 @@ def _layout_b_page(members: list[dict], show_footer: bool = False) -> str:
         if m.get("is_tbd"):
             name_style += "; color:#999"
 
+        nm = _t(m['name'], 6)
+        ph = _t(m.get('phone', ''), 13)
         items += f"""
         <div style="display:flex; align-items:baseline; padding:0.2mm 0; border-bottom:0.15mm solid #ddd; font-size:6pt; overflow:hidden; height:3mm">
             {cohort_label}
-            <span style="{name_style}; min-width:10mm; margin:0 1mm" class="clip">{m['name']}</span>
-            <span style="color:#444; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{m.get('phone','')}</span>
+            <span style="{name_style}; min-width:10mm; margin:0 1mm">{nm}</span>
+            <span style="color:#444; flex:1; white-space:nowrap">{ph}</span>
         </div>"""
 
+    title = '<div style="font-size:7pt; font-weight:700; margin-bottom:1.5mm; border-bottom:0.4mm solid #000; padding-bottom:0.5mm">재활의학과 주소록</div>' if show_title else ""
     return f"""
 <div class="card-b">
-    <div style="font-size:7pt; font-weight:700; margin-bottom:1.5mm; border-bottom:0.4mm solid #000; padding-bottom:0.5mm">재활의학과 주소록</div>
+    {title}
     {items}
     {_footer_html(show_footer)}
 </div>"""
 
 
 def generate_layout_b(members: list[dict], size: str) -> str:
-    side_a, side_b = _split_members(members)
     css = _COMMON_CSS + _layout_b_css(size)
     html = css + _header_html("Layout B: 모던 클린")
-    html += _layout_b_page(side_a, show_footer=False)
-    html += _layout_b_page(side_b, show_footer=True)
+
+    if size == "card":
+        side_a, side_b = _split_members(members)
+        html += _layout_b_panel(side_a, show_title=True, show_footer=False)
+        html += _layout_b_panel(side_b, show_title=False, show_footer=True)
+    else:
+        p1, p2, p3, p4 = _split_members_4(members)
+        html += '<div class="double-page">'
+        html += _layout_b_panel(p1, show_title=True, show_footer=False)
+        html += _fold_line()
+        html += _layout_b_panel(p2, show_title=False, show_footer=False)
+        html += '</div>'
+        html += '<div class="double-page">'
+        html += _layout_b_panel(p3, show_title=False, show_footer=False)
+        html += _fold_line()
+        html += _layout_b_panel(p4, show_title=False, show_footer=True)
+        html += '</div>'
+
     return f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>{html}</body></html>"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Layout C: 카드 그리드 — 인당 1카드 (이름+전화+이메일)
+# Layout C: 카드 그리드 — 인당 1카드
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_c_css(size: str) -> str:
-    h = "50mm" if size == "card" else "100mm"
-    p = "2mm" if size == "card" else "2mm"
-    return f"""
+    if size == "card":
+        return """
 <style>
-@page {{ size: 90mm {h}; margin: 0; }}
-.card-c {{ width: 90mm; height: {h}; padding: {p}; page-break-after: always; overflow: hidden; position: relative; }}
-.grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8mm; }}
-.person-card {{
-    border: 0.2mm solid #aaa; padding: 0.8mm;
-    font-size: 6pt; line-height: 1.25; overflow: hidden;
-    max-height: 10mm;
-}}
+@page { size: 90mm 50mm; margin: 0; }
+.card-c { width: 90mm; height: 50mm; padding: 2mm; overflow: hidden; position: relative; page-break-after: always; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8mm; }
+.person-card { border: 0.2mm solid #aaa; padding: 0.8mm; font-size: 6pt; line-height: 1.25; overflow: hidden; max-height: 10mm; }
+</style>"""
+    else:
+        return """
+<style>
+@page { size: 90mm 100mm; margin: 0; }
+.card-c { width: 90mm; height: 50mm; padding: 2mm; overflow: hidden; position: relative; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8mm; }
+.person-card { border: 0.2mm solid #aaa; padding: 0.8mm; font-size: 6pt; line-height: 1.25; overflow: hidden; max-height: 10mm; }
+.double-page { width: 90mm; height: 100mm; page-break-after: always; }
 </style>"""
 
 
-def _layout_c_page(members: list[dict], show_footer: bool = False) -> str:
+def _layout_c_panel(members: list[dict], show_title: bool = True, show_footer: bool = False) -> str:
     cards = ""
     for m in members:
         name_style = "font-weight:700; font-size:6pt"
         if m.get("is_tbd"):
             name_style += "; color:#999"
+        nm = _t(m['name'], 6)
+        ph = _t(m.get('phone', ''), 13)
+        em = _t(m.get('email', ''), 14)
         cards += f"""
         <div class="person-card">
-            <div style="font-size:5pt; color:#666" class="clip">{m['cohort']}</div>
-            <div style="{name_style}" class="clip">{m['name']}</div>
-            <div class="clip">{m.get('phone','')}</div>
-            <div style="color:#555" class="clip">{m.get('email','')}</div>
+            <div style="font-size:5pt; color:#666">{m['cohort']}</div>
+            <div style="{name_style}">{nm}</div>
+            <div>{ph}</div>
+            <div style="color:#555">{em}</div>
         </div>"""
 
+    title = '<div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm">재활의학과 주소록</div>' if show_title else ""
     return f"""
 <div class="card-c">
-    <div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm">재활의학과 주소록</div>
+    {title}
     <div class="grid">{cards}</div>
     {_footer_html(show_footer)}
 </div>"""
 
 
 def generate_layout_c(members: list[dict], size: str) -> str:
-    side_a, side_b = _split_members(members)
     css = _COMMON_CSS + _layout_c_css(size)
     html = css + _header_html("Layout C: 카드 그리드")
-    html += _layout_c_page(side_a, show_footer=False)
-    html += _layout_c_page(side_b, show_footer=True)
+
+    if size == "card":
+        side_a, side_b = _split_members(members)
+        html += _layout_c_panel(side_a, show_title=True, show_footer=False)
+        html += _layout_c_panel(side_b, show_title=False, show_footer=True)
+    else:
+        p1, p2, p3, p4 = _split_members_4(members)
+        html += '<div class="double-page">'
+        html += _layout_c_panel(p1, show_title=True, show_footer=False)
+        html += _fold_line()
+        html += _layout_c_panel(p2, show_title=False, show_footer=False)
+        html += '</div>'
+        html += '<div class="double-page">'
+        html += _layout_c_panel(p3, show_title=False, show_footer=False)
+        html += _fold_line()
+        html += _layout_c_panel(p4, show_title=False, show_footer=True)
+        html += '</div>'
+
     return f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>{html}</body></html>"
 
 
@@ -244,17 +337,24 @@ def generate_layout_c(members: list[dict], size: str) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _layout_d_css(size: str) -> str:
-    h = "50mm" if size == "card" else "100mm"
-    p = "2mm 3mm" if size == "card" else "3mm 4mm"
-    return f"""
+    if size == "card":
+        return """
 <style>
-@page {{ size: 90mm {h}; margin: 0; }}
-.card-d {{ width: 90mm; height: {h}; padding: {p}; page-break-after: always; overflow: hidden; position: relative; }}
-.two-col {{ column-count: 2; column-gap: 3mm; font-size: 6pt; line-height: 1.4; }}
+@page { size: 90mm 50mm; margin: 0; }
+.card-d { width: 90mm; height: 50mm; padding: 2mm 3mm; overflow: hidden; position: relative; page-break-after: always; }
+.two-col { column-count: 2; column-gap: 3mm; font-size: 6pt; line-height: 1.4; }
+</style>"""
+    else:
+        return """
+<style>
+@page { size: 90mm 100mm; margin: 0; }
+.card-d { width: 90mm; height: 50mm; padding: 2mm 3mm; overflow: hidden; position: relative; }
+.two-col { column-count: 2; column-gap: 3mm; font-size: 6pt; line-height: 1.4; }
+.double-page { width: 90mm; height: 100mm; page-break-after: always; }
 </style>"""
 
 
-def _layout_d_page(members: list[dict], show_footer: bool = False) -> str:
+def _layout_d_panel(members: list[dict], show_title: bool = True, show_footer: bool = False) -> str:
     items = ""
     prev_cohort = ""
     for m in members:
@@ -268,31 +368,48 @@ def _layout_d_page(members: list[dict], show_footer: bool = False) -> str:
         if m.get("is_tbd"):
             name_style += "; color:#999"
 
-        phone = m.get("phone", "")
+        nm = _t(m['name'], 6)
+        ph = _t(m.get("phone", ""), 13)
         items += f"""
         <div style="display:flex; justify-content:space-between; padding:0.2mm 0; font-size:6pt; overflow:hidden; height:2.8mm">
-            <span style="{name_style}" class="clip">{m['name']}</span>
-            <span style="color:#333; white-space:nowrap; margin-left:1mm; flex-shrink:0">{phone}</span>
+            <span style="{name_style}">{nm}</span>
+            <span style="color:#333; white-space:nowrap; margin-left:1mm; flex-shrink:0">{ph}</span>
         </div>"""
 
+    title = '<div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm; border-bottom:0.4mm solid #000; padding-bottom:0.5mm">재활의학과 주소록</div>' if show_title else ""
     return f"""
 <div class="card-d">
-    <div style="text-align:center; font-size:7pt; font-weight:700; margin-bottom:1mm; border-bottom:0.4mm solid #000; padding-bottom:0.5mm">재활의학과 주소록</div>
+    {title}
     <div class="two-col">{items}</div>
     {_footer_html(show_footer)}
 </div>"""
 
 
 def generate_layout_d(members: list[dict], size: str) -> str:
-    side_a, side_b = _split_members(members)
     css = _COMMON_CSS + _layout_d_css(size)
     html = css + _header_html("Layout D: 컴팩트 2단")
-    html += _layout_d_page(side_a, show_footer=False)
-    html += _layout_d_page(side_b, show_footer=True)
+
+    if size == "card":
+        side_a, side_b = _split_members(members)
+        html += _layout_d_panel(side_a, show_title=True, show_footer=False)
+        html += _layout_d_panel(side_b, show_title=False, show_footer=True)
+    else:
+        p1, p2, p3, p4 = _split_members_4(members)
+        html += '<div class="double-page">'
+        html += _layout_d_panel(p1, show_title=True, show_footer=False)
+        html += _fold_line()
+        html += _layout_d_panel(p2, show_title=False, show_footer=False)
+        html += '</div>'
+        html += '<div class="double-page">'
+        html += _layout_d_panel(p3, show_title=False, show_footer=False)
+        html += _fold_line()
+        html += _layout_d_panel(p4, show_title=False, show_footer=True)
+        html += '</div>'
+
     return f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>{html}</body></html>"
 
 
-# ── 통합 생성 함수 ────────────────────────────────────────────────────────────
+# ── 통합 ──────────────────────────────────────────────────────────────────────
 
 LAYOUTS = {
     "A: 개선된 표 형식": generate_layout_a,
